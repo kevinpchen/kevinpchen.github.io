@@ -537,7 +537,6 @@ const HomePage: React.FC<{
     <>
       <section className="hero" id="home">
         <div className="hero-copy">
-          <p className="eyebrow">NYU TANDON / BACKEND / APPLIED ML / MUSIC</p>
           <h1>
             Building backend and ML systems with the precision and discipline shaped by over a decade of music
           </h1>

@@ -144,6 +144,10 @@ img {
   padding-top: 20px;
 }
 
+.hero {
+  padding-top: 8px;
+}
+
 .hero-copy h1,
 .project-hero-copy h1 {
   margin: 0;
