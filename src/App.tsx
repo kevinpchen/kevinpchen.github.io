@@ -38,6 +38,7 @@ type Project = {
   heroImage: GalleryImage;
   heroImagePosition?: string;
   cardImage?: GalleryImage;
+  cardImagePosition?: string;
   focus: string[];
   story: {
     title: string;
@@ -126,6 +127,7 @@ const FEATURED_PROJECTS: Project[] = [
       alt: "Kevin Chen holding the AlphaDoMi device prototype.",
       caption: "The project is still evolving, but the core idea has stayed the same.",
     },
+    cardImagePosition: "center 32%",
     focus: [
       "Signal-processing feedback for practice sessions",
       "A product direction shaped by special-needs teaching",
@@ -599,6 +601,11 @@ const HomePage: React.FC<{
                 <img
                   src={(project.cardImage ?? project.heroImage).src}
                   alt={(project.cardImage ?? project.heroImage).alt}
+                  style={
+                    project.cardImagePosition
+                      ? { objectPosition: project.cardImagePosition }
+                      : undefined
+                  }
                 />
               </div>
               <div className="project-copy">
