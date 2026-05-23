@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 type Repo = {
   id: number;
@@ -35,6 +35,10 @@ type Project = {
   role: string;
   status: string;
   outcome: string;
+  trace: {
+    label: string;
+    value: string;
+  }[];
   heroImage: GalleryImage;
   heroImagePosition?: string;
   cardImage?: GalleryImage;
@@ -65,6 +69,10 @@ type ExperienceItem = {
   location: string;
   period: string;
   points: string[];
+};
+
+type StaggerStyle = React.CSSProperties & {
+  "--stagger-index": number;
 };
 
 const GITHUB_USERNAME = "kevinpchen";
@@ -122,6 +130,12 @@ const FEATURED_PROJECTS: Project[] = [
     status: "Ongoing project",
     outcome:
       "Ongoing development with published research and classroom use behind it.",
+    trace: [
+      ["PROBLEM", "Solo practice makes mistakes hard to hear in real time."],
+      ["SYSTEM", "Feedback for pitch, rhythm, and timing."],
+      ["USER", "Students who need clearer practice signals."],
+      ["METHOD", "Music-domain intuition + technical iteration."],
+    ].map(([label, value]) => ({ label, value })),
     heroImage: {
       src: "/media/alphadomi-device.webp",
       alt: "Kevin Chen holding the AlphaDoMi device prototype.",
@@ -193,6 +207,12 @@ const FEATURED_PROJECTS: Project[] = [
     status: "Earlier chapter, still central to my voice",
     outcome:
       "Built long-term trust, taught coding and music, and kept the work concrete and human.",
+    trace: [
+      ["PROBLEM", "Special-needs teaching needs patience, clarity, and structure that holds."],
+      ["SYSTEM", "Coding and music sessions built around repetition, trust, and pacing."],
+      ["USER", "Students who learn better when difficult ideas feel approachable."],
+      ["METHOD", "Curriculum design, improvisation, and close human attention."],
+    ].map(([label, value]) => ({ label, value })),
     heroImage: {
       src: "/media/community-coding-2.webp",
       alt: "Kevin Chen leaning over a table to help students.",
@@ -263,6 +283,12 @@ const FEATURED_PROJECTS: Project[] = [
     status: "Personal fieldwork project",
     outcome:
       "Recorded performances, production moments, and context around local music traditions.",
+    trace: [
+      ["PROBLEM", "Preservation loses meaning when sound is separated from its context."],
+      ["SYSTEM", "Field recording, observation, interviews, and visual documentation."],
+      ["USER", "People trying to understand living traditions without flattening them."],
+      ["METHOD", "Patient listening, respectful framing, and narrative discipline."],
+    ].map(([label, value]) => ({ label, value })),
     heroImage: {
       src: "/media/music-map-performer.webp",
       alt: "Performer in traditional costume.",
@@ -453,6 +479,130 @@ const parseRoute = (hash: string): Route => {
   return { kind: "home" };
 };
 
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const usePrefersReducedMotion = () => {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const handleChange = () => setPrefersReducedMotion(mediaQuery.matches);
+
+    handleChange();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  return prefersReducedMotion;
+};
+
+const ScrollFadeSection: React.FC<{
+  children: React.ReactNode;
+  className?: string;
+  as?: "div" | "section";
+}> = ({ children, className = "", as = "div" }) => {
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const ref = useRef<HTMLElement | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [style, setStyle] = useState<React.CSSProperties>({
+    opacity: 0.14,
+    transform: "translate3d(0, 24px, 0)",
+  });
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || typeof window === "undefined") {
+      return undefined;
+    }
+
+    let frame = 0;
+
+    const update = () => {
+      frame = 0;
+
+      const rect = node.getBoundingClientRect();
+      const viewportHeight = window.innerHeight || 1;
+      const enterProgress = clamp(
+        (viewportHeight * 0.88 - rect.top) / (viewportHeight * 0.34),
+        0,
+        1
+      );
+
+      let opacity = 0.14 + enterProgress * 0.86;
+      let y = (1 - enterProgress) * 24;
+
+      if (!prefersReducedMotion) {
+        const exitProgress = clamp(
+          (viewportHeight * 0.18 - rect.top) / Math.max(rect.height, viewportHeight * 0.58),
+          0,
+          1
+        );
+        opacity = clamp(opacity * (1 - exitProgress * 0.78), 0.12, 1);
+        y -= exitProgress * 24;
+      } else {
+        y = 0;
+        opacity = clamp(opacity, 0.24, 1);
+      }
+
+      setStyle({
+        opacity,
+        transform: `translate3d(0, ${y}px, 0)`,
+      });
+    };
+
+    const requestUpdate = () => {
+      if (frame === 0) {
+        frame = window.requestAnimationFrame(update);
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting || entry.intersectionRatio > 0.08);
+        requestUpdate();
+      },
+      { threshold: [0, 0.08, 0.2, 0.45, 0.75, 1] }
+    );
+
+    observer.observe(node);
+    update();
+    window.addEventListener("scroll", requestUpdate, { passive: true });
+    window.addEventListener("resize", requestUpdate);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", requestUpdate);
+      window.removeEventListener("resize", requestUpdate);
+      if (frame !== 0) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
+  }, [prefersReducedMotion]);
+
+  const Component = as;
+
+  return (
+    <Component
+      ref={ref}
+      style={style}
+      className={`scroll-fade ${isVisible ? "is-visible" : ""} ${className}`.trim()}
+    >
+      {children}
+    </Component>
+  );
+};
+
 const scrollToSection = (sectionId: string) => {
   const node = document.getElementById(sectionId);
   if (node) {
@@ -498,29 +648,30 @@ const SiteChrome: React.FC<{
   return (
     <header className="site-header">
       <a className="brand" href={HOME_HASH}>
-        Kevin P. Chen
+        ~/kevinpchen
       </a>
 
       {route.kind === "home" ? (
         <nav className="site-nav" aria-label="Primary">
-          <HomeButton label="Projects" onClick={() => scrollToSection("work")} />
+          <HomeButton label="./ projects" onClick={() => scrollToSection("work")} />
           <HomeButton
-            label="Experience"
+            label="./ experience"
             onClick={() => scrollToSection("experience")}
           />
           <HomeButton
-            label="Music Journey"
+            label="./ music"
             onClick={() => scrollToSection("music-journey")}
           />
-          <HomeButton label="Contact" onClick={() => scrollToSection("contact")} />
+          <HomeButton label="./ contact" onClick={() => scrollToSection("contact")} />
+          <span className="header-status">ONLINE</span>
         </nav>
       ) : (
         <nav className="site-nav" aria-label="Project navigation">
           <a className="nav-link" href={HOME_HASH}>
-            Home
+            ./ home
           </a>
-          <HomeButton label="Story" onClick={() => scrollToSection("story")} />
-          <HomeButton label="Gallery" onClick={() => scrollToSection("gallery")} />
+          <HomeButton label="./ story" onClick={() => scrollToSection("story")} />
+          <HomeButton label="./ gallery" onClick={() => scrollToSection("gallery")} />
           <span className="project-chip">{project?.index}</span>
         </nav>
       )}
@@ -537,206 +688,298 @@ const HomePage: React.FC<{
 
   return (
     <>
-      <section className="hero" id="home">
-        <div className="hero-copy">
-          <h1>
-            Building backend and ML systems with the precision and discipline shaped by over a decade of music
-          </h1>
-          <p className="hero-body">
-            Focused on backend infrastructure, distributed systems, and applied machine learning.
-          </p>
-          <div className="hero-actions">
-            <a className="button-link" href={RESUME_PATH} target="_blank" rel="noreferrer">
-              Resume
-            </a>
-            <a
-              className="button-link button-link-muted"
-              href={`https://github.com/${GITHUB_USERNAME}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              GitHub
-            </a>
-            <a className="button-link button-link-muted" href="#/projects/alphadomi">
-              Featured projects
-            </a>
+      <ScrollFadeSection>
+        <section className="hero" id="home">
+          <div className="hero-copy">
+            <p className="hero-prompt">
+              <span>$ connect</span>
+              <span>portfolio.init()</span>
+              <span className="cursor">_</span>
+            </p>
+            <h1>
+              <span>#</span> Kevin P. Chen
+            </h1>
+            <p className="hero-subtitle">Backend / ML Systems Builder</p>
+            <p className="hero-body">
+              Building backend and ML systems with the precision and discipline shaped by over a
+              decade of music.
+            </p>
+            <p className="hero-body">
+              Focused on backend infrastructure, distributed systems, and applied machine learning.
+            </p>
+            <div className="hero-actions">
+              <a className="button-link" href={RESUME_PATH} target="_blank" rel="noreferrer">
+                Resume
+              </a>
+              <a
+                className="button-link button-link-muted"
+                href={`https://github.com/${GITHUB_USERNAME}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub
+              </a>
+              <a className="button-link button-link-muted" href="#/projects/alphadomi">
+                Featured projects
+              </a>
+            </div>
+            <div className="hero-signal-strip" aria-label="At a glance">
+              <div className="hero-signal-item">
+                <span className="hero-signal-label">SYSTEMS</span>
+                <p>
+                  Internal tools, APIs, data services, and infrastructure built for people who
+                  actually depend on them.
+                  <span className="hero-signal-meta">
+                    Python / REST / SQL / MongoDB / Docker / Kubernetes
+                  </span>
+                </p>
+              </div>
+              <div className="hero-signal-item">
+                <span className="hero-signal-label">AI</span>
+                <p>
+                  Applied AI for scientific and language systems, from AF3 antibody scoring to
+                  LLM-based morpheme segmentation.
+                  <span className="hero-signal-meta">
+                    AF3 / LLMs / PyTorch / Bioinformatics / NLP
+                  </span>
+                </p>
+              </div>
+              <div className="hero-signal-item">
+                <span className="hero-signal-label">INTERFACE</span>
+                <p>
+                  Making complex technical systems easier to understand, debug, and trust for the
+                  people who actually use them.
+                  <span className="hero-signal-meta">
+                    Systems UX / Feedback / Workflows
+                  </span>
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <figure className="hero-media hero-portrait-frame">
+          <figure className="hero-media hero-portrait-frame">
           <img
             className="hero-portrait-image"
             src="/media/hero-portrait.webp"
             alt="Portrait of Kevin Chen."
           />
-        </figure>
-      </section>
+          </figure>
+        </section>
+      </ScrollFadeSection>
 
-      <section className="intro-band" aria-label="Current focus">
-        <div>
-          <p className="eyebrow">NOW</p>
-          <p className="body-copy">
-            I care most about systems that are measurable, calm under load, and
-            usable by the people who depend on them.
-          </p>
-        </div>
-        <ul className="fact-list">
-          <li>Computer Science at NYU Tandon, with minors in Mathematics and Game Engineering.</li>
-          <li>Experience across biotech, travel, internal tools, and research infrastructure.</li>
-          <li>Looking for work that values technical depth and clear communication in equal measure.</li>
-        </ul>
-      </section>
-
-      <section className="section" id="work">
-        <div className="section-heading">
-          <p className="eyebrow">Selected Projects</p>
-          <h2>Three projects that explain how I think.</h2>
-        </div>
-
-        <div className="project-list">
-          {FEATURED_PROJECTS.map((project) => (
-            <article className="project-row" key={project.slug}>
-              <div className="project-number">{project.index}</div>
-              <div className="project-thumb">
-                <img
-                  src={(project.cardImage ?? project.heroImage).src}
-                  alt={(project.cardImage ?? project.heroImage).alt}
-                  style={
-                    project.cardImagePosition
-                      ? { objectPosition: project.cardImagePosition }
-                      : undefined
-                  }
-                />
+      <ScrollFadeSection>
+        <section className="section about-section" aria-label="About">
+          <div className="terminal-section-heading">
+            <span>01. ABOUT</span>
+            <em>// systems, music, and engineering discipline</em>
+          </div>
+          <div className="about-grid">
+            <div className="about-lead">
+              <p className="body-copy about-lead-copy">
+                I care most about systems that are measurable, calm under load, and usable by the
+                people who depend on them.
+              </p>
+              <p className="body-copy">
+                A lot of my work sits at the intersection of infrastructure, research, and
+                communication. I like building things that are technically solid, but I care just
+                as much about whether they stay understandable to the people around them.
+              </p>
+            </div>
+            <div className="about-facts">
+              <div className="about-fact">
+                <span>SCHOOL</span>
+                <strong>Computer Science at NYU Tandon</strong>
               </div>
-              <div className="project-copy">
-                <p className="project-eyebrow">{project.eyebrow}</p>
-                <h3>{project.title}</h3>
-                <p className="body-copy">{project.homeNote}</p>
-                <div className="project-meta">
-                  <span>{project.role}</span>
-                  <span>{project.outcome}</span>
+              <div className="about-fact">
+                <span>MINORS</span>
+                <strong>Mathematics and Game Engineering</strong>
+              </div>
+              <div className="about-fact">
+                <span>EXPERIENCE</span>
+                <strong>Biotech, travel, internal tools, and research infrastructure</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+      </ScrollFadeSection>
+
+      <ScrollFadeSection>
+        <section className="section" id="work">
+          <div className="section-heading">
+            <div className="terminal-section-heading">
+              <span>02. PROJECTS</span>
+              <em>// selected work and case studies</em>
+            </div>
+            <h2>Three projects that explain how I think.</h2>
+          </div>
+
+          <div className="project-list">
+            {FEATURED_PROJECTS.map((project, index) => (
+              <article
+                className="project-row stagger-reveal"
+                key={project.slug}
+                style={{ "--stagger-index": index } as StaggerStyle}
+              >
+                <div className="project-number">{project.index}</div>
+                <div className="project-thumb">
+                  <img
+                    src={(project.cardImage ?? project.heroImage).src}
+                    alt={(project.cardImage ?? project.heroImage).alt}
+                    style={
+                      project.cardImagePosition
+                        ? { objectPosition: project.cardImagePosition }
+                        : undefined
+                    }
+                  />
                 </div>
-              </div>
-              <div className="project-action">
-                <ProjectLink label="Open project" slug={project.slug} />
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+                <div className="project-copy">
+                  <p className="project-eyebrow">{project.eyebrow}</p>
+                  <h3>{project.title}</h3>
+                  <p className="body-copy">{project.homeNote}</p>
+                  <div className="project-meta">
+                    <span>{project.role}</span>
+                    <span>{project.outcome}</span>
+                  </div>
+                </div>
+                <div className="project-action">
+                  <ProjectLink label="Open project" slug={project.slug} />
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </ScrollFadeSection>
 
-      <section className="section section-split" id="experience">
-        <div className="section-heading">
-          <p className="eyebrow">Experience</p>
-          <h2>Internships and research in backend and ML.</h2>
-        </div>
+      <ScrollFadeSection>
+        <section className="section section-split" id="experience">
+          <div className="section-heading">
+            <div className="terminal-section-heading">
+              <span>03. EXPERIENCE</span>
+              <em>// internships, research, and backend systems</em>
+            </div>
+            <h2>Internships and research in backend and ML.</h2>
+          </div>
 
-        <div className="timeline">
-          {EXPERIENCE_ITEMS.map((item) => (
-            <article className="timeline-item" key={`${item.company}-${item.period}`}>
-              <div className="timeline-meta">
-                <p>{item.period}</p>
-                <span>{item.location}</span>
-              </div>
-              <div className="timeline-copy">
-                <h3>
-                  {item.title}
-                  <span>@ {item.company}</span>
-                </h3>
-                <ul>
-                  {item.points.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
-                </ul>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+          <div className="timeline">
+            {EXPERIENCE_ITEMS.map((item) => (
+              <article className="timeline-item" key={`${item.company}-${item.period}`}>
+                <div className="timeline-meta">
+                  <p>{item.period}</p>
+                  <span>{item.location}</span>
+                </div>
+                <div className="timeline-copy">
+                  <h3>
+                    {item.title}
+                    <span>@ {item.company}</span>
+                  </h3>
+                  <ul>
+                    {item.points.map((point) => (
+                      <li key={point}>{point}</li>
+                    ))}
+                  </ul>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </ScrollFadeSection>
 
-      <section className="section section-split">
-        <div className="section-heading">
-          <p className="eyebrow">Projects on GitHub</p>
-          <h2>Selected repositories from GitHub.</h2>
-        </div>
+      <ScrollFadeSection>
+        <section className="section section-split">
+          <div className="section-heading">
+            <div className="terminal-section-heading">
+              <span>04. GITHUB</span>
+              <em>// selected repositories and active work</em>
+            </div>
+            <h2>Selected repositories from GitHub.</h2>
+          </div>
 
-        {loading && <p className="body-copy muted-copy">Loading repositories.</p>}
-        {error && <p className="body-copy muted-copy">{error}</p>}
+          {loading && <p className="body-copy muted-copy">Loading repositories.</p>}
+          {error && <p className="body-copy muted-copy">{error}</p>}
 
-        {!loading && !error && (
-          <div className="repo-list">
-            {repos.map((repo) => {
-              const override = REPO_OVERRIDES[repo.name];
-              const displayName = override?.displayName ?? repo.name;
-              const description = override?.description ?? repo.description;
+          {!loading && !error && (
+            <div className="repo-list">
+              {repos.map((repo, index) => {
+                const override = REPO_OVERRIDES[repo.name];
+                const displayName = override?.displayName ?? repo.name;
+                const description = override?.description ?? repo.description;
 
-              return (
+                return (
+                  <a
+                    className="repo-row stagger-reveal"
+                    href={repo.html_url}
+                    key={repo.id}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ "--stagger-index": index } as StaggerStyle}
+                  >
+                    <div>
+                      <h3>{displayName}</h3>
+                      {description && <p>{description}</p>}
+                    </div>
+                    <div className="repo-meta">
+                      <span>{repo.language ?? "Unknown"}</span>
+                      <span>Star {repo.stargazers_count}</span>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </ScrollFadeSection>
+
+      <ScrollFadeSection>
+        <section className="section" id="music-journey">
+          <div className="section-heading">
+            <div className="terminal-section-heading">
+              <span>05. MUSIC</span>
+              <em>// performance, composition, and awards</em>
+            </div>
+            <h2>Before code, there was music.</h2>
+          </div>
+
+          <div className="music-journey-layout">
+            <figure className="music-journey-media">
+              <img src="/media/hero-award.webp" alt="Kevin Chen receiving a music award." />
+            </figure>
+
+            <div className="music-journey-copy">
+              {MUSIC_JOURNEY_PARAGRAPHS.map((paragraph) => (
+                <p className="body-copy" key={paragraph}>
+                  {paragraph}
+                </p>
+              ))}
+              <p className="body-copy">
+                I have also been composing since high school. One piece,{" "}
                 <a
-                  className="repo-row"
-                  href={repo.html_url}
-                  key={repo.id}
+                  className="inline-link"
+                  href="https://youtu.be/RlcAyMlH_Yk"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <div>
-                    <h3>{displayName}</h3>
-                    {description && <p>{description}</p>}
-                  </div>
-                  <div className="repo-meta">
-                    <span>{repo.language ?? "Unknown"}</span>
-                    <span>Star {repo.stargazers_count}</span>
-                  </div>
+                  Rhapsody by Kevin P Chen
                 </a>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <section className="section" id="music-journey">
-        <div className="section-heading">
-          <p className="eyebrow">Music Journey</p>
-          <h2>Before code, there was music.</h2>
-        </div>
-
-        <div className="music-journey-layout">
-          <figure className="music-journey-media">
-            <img src="/media/hero-award.webp" alt="Kevin Chen receiving a music award." />
-          </figure>
-
-          <div className="music-journey-copy">
-            {MUSIC_JOURNEY_PARAGRAPHS.map((paragraph) => (
-              <p className="body-copy" key={paragraph}>
-                {paragraph}
+                , won first prize in a UK international competition.
               </p>
-            ))}
-            <p className="body-copy">
-              I have also been composing since high school. One piece,{" "}
-              <a
-                className="inline-link"
-                href="https://youtu.be/RlcAyMlH_Yk"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Rhapsody by Kevin P Chen
-              </a>
-              , won first prize in a UK international competition.
-            </p>
-            <p className="body-copy">
-              I also performed{" "}
-              <a
-                className="inline-link"
-                href="https://youtu.be/4kc013im1gA"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Vaclav Pichl Double Bass Concerto in C Major, I. Allegro moderato
-              </a>{" "}
-              at the Shanghai Oriental Art Center.
-            </p>
+              <p className="body-copy">
+                I also performed{" "}
+                <a
+                  className="inline-link"
+                  href="https://youtu.be/4kc013im1gA"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Vaclav Pichl Double Bass Concerto in C Major, I. Allegro moderato
+                </a>{" "}
+                at the Shanghai Oriental Art Center.
+              </p>
+            </div>
           </div>
-        </div>
+        </section>
+      </ScrollFadeSection>
 
+      <ScrollFadeSection className="awards-scroll-block">
         <div className="awards-toggle-row">
           <button
             type="button"
@@ -756,8 +999,12 @@ const HomePage: React.FC<{
         >
           <div className="awards-panel-inner">
             <div className="archive-grid awards-grid">
-              {MUSIC_MILESTONES.map((item) => (
-                <article className="archive-item" key={`${item.title}-${item.year}`}>
+              {MUSIC_MILESTONES.map((item, index) => (
+                <article
+                  className="archive-item stagger-reveal"
+                  key={`${item.title}-${item.year}`}
+                  style={{ "--stagger-index": index } as StaggerStyle}
+                >
                   <img src={item.image.src} alt={item.image.alt} />
                   <div className="archive-copy">
                     <p className="archive-year">{item.year}</p>
@@ -769,48 +1016,57 @@ const HomePage: React.FC<{
             </div>
           </div>
         </div>
-      </section>
+      </ScrollFadeSection>
 
-      <section className="section contact-section" id="contact">
-        <div className="section-heading">
-          <p className="eyebrow">Contact</p>
-          <h2>
-            Whether it’s backend, ML, research,
-            <br />
-            or something unconventional, I’d love to hear about it.
-          </h2>
-        </div>
+      <ScrollFadeSection>
+        <section className="section contact-section" id="contact">
+          <div className="contact-grid">
+            <div className="contact-copy">
+              <div className="section-heading">
+                <div className="terminal-section-heading">
+                  <span>06. CONTACT</span>
+                  <em>// backend, ML, research, and everything adjacent</em>
+                </div>
+              <h2>
+                Whether it’s backend, ML, research,
+                <br />
+                or something unconventional,
+                <br />
+                I’d love to hear about it.
+              </h2>
+              </div>
 
-        <div className="contact-grid">
-          <p className="body-copy">
-            The easiest way to reach me is by email. I&apos;m especially interested
-            in software engineering internships and research-adjacent work where
-            strong infrastructure and thoughtful product thinking overlap.
-          </p>
+              <p className="body-copy">
+                The easiest way to reach me is by email. I&apos;m especially interested
+                in software engineering internships and research-adjacent work where
+                strong infrastructure and thoughtful product thinking overlap.
+              </p>
+            </div>
 
-          <div className="contact-links">
-            <a className="button-link" href="mailto:kevin.p.chen@nyu.edu">
-              kevin.p.chen@nyu.edu
-            </a>
-            <a
-              className="button-link button-link-muted"
-              href={`https://github.com/${GITHUB_USERNAME}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              GitHub
-            </a>
-            <a
-              className="button-link button-link-muted"
-              href="https://www.linkedin.com/in/kevinpchen628"
-              target="_blank"
-              rel="noreferrer"
-            >
-              LinkedIn
-            </a>
+            <div className="contact-links">
+              <a className="button-link" href="mailto:kevin.p.chen@nyu.edu">
+                kevin.p.chen@nyu.edu
+              </a>
+              <a
+                className="button-link button-link-muted"
+                href={`https://github.com/${GITHUB_USERNAME}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                GitHub
+              </a>
+              <a
+                className="button-link button-link-muted"
+                href="https://www.linkedin.com/in/kevinpchen628"
+                target="_blank"
+                rel="noreferrer"
+              >
+                LinkedIn
+              </a>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </ScrollFadeSection>
     </>
   );
 };
@@ -828,6 +1084,37 @@ const ProjectPage: React.FC<{
           <p className="eyebrow">{project.eyebrow}</p>
           <h1>{project.title}</h1>
           <p className="hero-body">{project.summary}</p>
+
+          <div className="project-trace-panel" aria-label="Project trace">
+            <p className="project-trace-command">$ project.trace()</p>
+            <dl className="project-trace-list">
+              {project.trace.map((entry) => (
+                <div className="project-trace-row" key={entry.label}>
+                  <dt>{entry.label}</dt>
+                  <dd>{entry.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          <div className="project-hero-summary">
+            <div className="summary-item">
+              <span>Years</span>
+              <strong>{project.years}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Role</span>
+              <strong>{project.role}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Status</span>
+              <strong>{project.status}</strong>
+            </div>
+            <div className="summary-item">
+              <span>Outcome</span>
+              <strong>{project.outcome}</strong>
+            </div>
+          </div>
         </div>
 
         <figure className="project-lead-media">
@@ -838,25 +1125,6 @@ const ProjectPage: React.FC<{
           />
           <figcaption>{project.heroImage.caption}</figcaption>
         </figure>
-      </section>
-
-      <section className="section project-summary-band">
-        <div className="summary-item">
-          <span>Years</span>
-          <strong>{project.years}</strong>
-        </div>
-        <div className="summary-item">
-          <span>Role</span>
-          <strong>{project.role}</strong>
-        </div>
-        <div className="summary-item">
-          <span>Status</span>
-          <strong>{project.status}</strong>
-        </div>
-        <div className="summary-item">
-          <span>Outcome</span>
-          <strong>{project.outcome}</strong>
-        </div>
       </section>
 
       <section className="section detail-section" id="story">
@@ -1025,7 +1293,9 @@ export const App: React.FC = () => {
   }, [repos]);
 
   return (
-    <div className="page">
+    <div className="page fade-mask-page">
+      <div className="viewport-fade viewport-fade-top" aria-hidden="true" />
+      <div className="viewport-fade viewport-fade-bottom" aria-hidden="true" />
       <SiteChrome route={route} />
 
       <main className="main">
