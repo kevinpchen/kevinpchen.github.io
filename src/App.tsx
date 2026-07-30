@@ -6,7 +6,6 @@ type Repo = {
   description: string | null;
   html_url: string;
   language: string | null;
-  stargazers_count: number;
 };
 
 type Route =
@@ -622,8 +621,14 @@ const scrollToSection = (sectionId: string) => {
 const HomeButton: React.FC<{
   label: string;
   onClick: () => void;
-}> = ({ label, onClick }) => (
-  <button type="button" className="nav-button" onClick={onClick}>
+  active?: boolean;
+}> = ({ label, onClick, active = false }) => (
+  <button
+    type="button"
+    className={`nav-button ${active ? "is-active" : ""}`}
+    onClick={onClick}
+    aria-current={active ? "location" : undefined}
+  >
     {label}
   </button>
 );
@@ -640,10 +645,53 @@ const ProjectLink: React.FC<{
 const SiteChrome: React.FC<{
   route: Route;
 }> = ({ route }) => {
+  const [activeSection, setActiveSection] = useState("home");
   const project =
     route.kind === "project"
       ? FEATURED_PROJECTS.find((entry) => entry.slug === route.slug)
       : null;
+
+  useEffect(() => {
+    if (route.kind !== "home") {
+      return undefined;
+    }
+
+    const sectionIds = ["home", "work", "experience", "music-journey", "contact"];
+    let frame = 0;
+
+    const updateActiveSection = () => {
+      frame = 0;
+      const headerOffset = 132;
+      let currentSection = "home";
+
+      sectionIds.forEach((sectionId) => {
+        const section = document.getElementById(sectionId);
+        if (section && section.getBoundingClientRect().top <= headerOffset) {
+          currentSection = sectionId;
+        }
+      });
+
+      setActiveSection(currentSection);
+    };
+
+    const requestUpdate = () => {
+      if (frame === 0) {
+        frame = window.requestAnimationFrame(updateActiveSection);
+      }
+    };
+
+    updateActiveSection();
+    window.addEventListener("scroll", requestUpdate, { passive: true });
+    window.addEventListener("resize", requestUpdate);
+
+    return () => {
+      window.removeEventListener("scroll", requestUpdate);
+      window.removeEventListener("resize", requestUpdate);
+      if (frame !== 0) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
+  }, [route.kind]);
 
   return (
     <header className="site-header">
@@ -653,16 +701,26 @@ const SiteChrome: React.FC<{
 
       {route.kind === "home" ? (
         <nav className="site-nav" aria-label="Primary">
-          <HomeButton label="./ projects" onClick={() => scrollToSection("work")} />
+          <HomeButton
+            label="./ projects"
+            onClick={() => scrollToSection("work")}
+            active={activeSection === "work"}
+          />
           <HomeButton
             label="./ experience"
             onClick={() => scrollToSection("experience")}
+            active={activeSection === "experience"}
           />
           <HomeButton
             label="./ music"
             onClick={() => scrollToSection("music-journey")}
+            active={activeSection === "music-journey"}
           />
-          <HomeButton label="./ contact" onClick={() => scrollToSection("contact")} />
+          <HomeButton
+            label="./ contact"
+            onClick={() => scrollToSection("contact")}
+            active={activeSection === "contact"}
+          />
           <span className="header-status">ONLINE</span>
         </nav>
       ) : (
@@ -723,46 +781,51 @@ const HomePage: React.FC<{
                 Featured projects
               </a>
             </div>
-            <div className="hero-signal-strip" aria-label="At a glance">
-              <div className="hero-signal-item">
-                <span className="hero-signal-label">SYSTEMS</span>
-                <p>
-                  Internal tools, APIs, data services, and infrastructure built for people who
-                  actually depend on them.
-                  <span className="hero-signal-meta">
-                    Python / REST / SQL / MongoDB / Docker / Kubernetes
-                  </span>
-                </p>
-              </div>
-              <div className="hero-signal-item">
-                <span className="hero-signal-label">AI</span>
-                <p>
-                  Applied AI for scientific and language systems, from AF3 antibody scoring to
-                  LLM-based morpheme segmentation.
-                  <span className="hero-signal-meta">
-                    AF3 / LLMs / PyTorch / Bioinformatics / NLP
-                  </span>
-                </p>
-              </div>
-              <div className="hero-signal-item">
-                <span className="hero-signal-label">INTERFACE</span>
-                <p>
-                  Making complex technical systems easier to understand, debug, and trust for the
-                  people who actually use them.
-                  <span className="hero-signal-meta">
-                    Systems UX / Feedback / Workflows
-                  </span>
-                </p>
-              </div>
+          </div>
+
+          <div className="hero-signal-strip" aria-label="At a glance">
+            <div className="hero-signal-item">
+              <span className="hero-signal-label">SYSTEMS</span>
+              <p>
+                Internal tools, APIs, data services, and infrastructure built for people who
+                actually depend on them.
+                <span className="hero-signal-meta">
+                  Python / REST / SQL / MongoDB / Docker / Kubernetes
+                </span>
+              </p>
+            </div>
+            <div className="hero-signal-item">
+              <span className="hero-signal-label">AI</span>
+              <p>
+                Applied AI for scientific and language systems, from AF3 antibody scoring to
+                LLM-based morpheme segmentation.
+                <span className="hero-signal-meta">
+                  AF3 / LLMs / PyTorch / Bioinformatics / NLP
+                </span>
+              </p>
+            </div>
+            <div className="hero-signal-item">
+              <span className="hero-signal-label">INTERFACE</span>
+              <p>
+                Making complex technical systems easier to understand, debug, and trust for the
+                people who actually use them.
+                <span className="hero-signal-meta">
+                  Systems UX / Feedback / Workflows
+                </span>
+              </p>
             </div>
           </div>
 
           <figure className="hero-media hero-portrait-frame">
-          <img
-            className="hero-portrait-image"
-            src="/media/hero-portrait.webp"
-            alt="Portrait of Kevin Chen."
-          />
+            <img
+              className="hero-portrait-image"
+              src="/media/hero-portrait.webp"
+              alt="Portrait of Kevin Chen."
+            />
+            <figcaption className="hero-portrait-caption">
+              <span>NYU Tandon CS</span>
+              <span>New York / Shanghai</span>
+            </figcaption>
           </figure>
         </section>
       </ScrollFadeSection>
@@ -919,7 +982,6 @@ const HomePage: React.FC<{
                     </div>
                     <div className="repo-meta">
                       <span>{repo.language ?? "Unknown"}</span>
-                      <span>Star {repo.stargazers_count}</span>
                     </div>
                   </a>
                 );
@@ -1082,7 +1144,17 @@ const ProjectPage: React.FC<{
       <section className="project-hero">
         <div className="project-hero-copy">
           <p className="eyebrow">{project.eyebrow}</p>
-          <h1>{project.title}</h1>
+          <h1
+            className={
+              project.title.length > 30
+                ? "project-title-long"
+                : project.title.length > 18
+                  ? "project-title-medium"
+                  : undefined
+            }
+          >
+            {project.title}
+          </h1>
           <p className="hero-body">{project.summary}</p>
 
           <div className="project-trace-panel" aria-label="Project trace">
@@ -1225,6 +1297,7 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
+  const [scrollProgress, setScrollProgress] = useState(0);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -1256,6 +1329,37 @@ export const App: React.FC = () => {
 
     fetchRepos();
   }, []);
+
+  useEffect(() => {
+    let frame = 0;
+
+    const updateScrollProgress = () => {
+      frame = 0;
+      const maxScroll = Math.max(
+        document.documentElement.scrollHeight - window.innerHeight,
+        1
+      );
+      setScrollProgress(clamp(window.scrollY / maxScroll, 0, 1));
+    };
+
+    const requestUpdate = () => {
+      if (frame === 0) {
+        frame = window.requestAnimationFrame(updateScrollProgress);
+      }
+    };
+
+    updateScrollProgress();
+    window.addEventListener("scroll", requestUpdate, { passive: true });
+    window.addEventListener("resize", requestUpdate);
+
+    return () => {
+      window.removeEventListener("scroll", requestUpdate);
+      window.removeEventListener("resize", requestUpdate);
+      if (frame !== 0) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
+  }, [route]);
 
   const activeProject = useMemo(() => {
     if (route.kind !== "project") {
@@ -1293,12 +1397,20 @@ export const App: React.FC = () => {
   }, [repos]);
 
   return (
-    <div className="page fade-mask-page">
+    <div className={`page fade-mask-page page-${route.kind}`}>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <div
+        className="scroll-progress"
+        style={{ transform: `scaleX(${scrollProgress})` }}
+        aria-hidden="true"
+      />
       <div className="viewport-fade viewport-fade-top" aria-hidden="true" />
       <div className="viewport-fade viewport-fade-bottom" aria-hidden="true" />
       <SiteChrome route={route} />
 
-      <main className="main">
+      <main className="main" id="main-content">
         {route.kind === "home" || !activeProject ? (
           <HomePage repos={curatedRepos} loading={loading} error={error} />
         ) : (
