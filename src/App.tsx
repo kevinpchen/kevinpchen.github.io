@@ -594,12 +594,18 @@ const ScrollFadeSection: React.FC<{
   return (
     <Component
       ref={ref}
-      style={style}
       className={`scroll-fade ${isVisible ? "is-visible" : ""} ${className}`.trim()}
     >
-      {children}
+      <div className="scroll-fade-content" style={style}>
+        {children}
+      </div>
     </Component>
   );
+};
+
+const getStableDocumentTop = (node: HTMLElement) => {
+  const scrollAnchor = node.closest<HTMLElement>(".scroll-fade") ?? node;
+  return scrollAnchor.getBoundingClientRect().top + window.scrollY;
 };
 
 const scrollToSection = (sectionId: string) => {
@@ -608,12 +614,23 @@ const scrollToSection = (sectionId: string) => {
     const header = document.querySelector(".site-header");
     const headerOffset =
       header instanceof HTMLElement ? header.offsetHeight + 16 : 96;
+    const maxScrollTop = Math.max(
+      document.documentElement.scrollHeight - window.innerHeight,
+      0
+    );
+    const sectionTop = getStableDocumentTop(node);
     const targetTop =
-      node.getBoundingClientRect().top + window.scrollY - headerOffset;
+      sectionId === "contact"
+        ? maxScrollTop
+        : clamp(sectionTop - headerOffset, 0, maxScrollTop);
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth";
 
-    window.scrollTo({
-      top: Math.max(targetTop, 0),
-      behavior: "smooth",
+    // Stop an in-flight smooth scroll before starting the next navigation.
+    window.scrollTo({ top: window.scrollY, behavior: "auto" });
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: targetTop, behavior });
     });
   }
 };
@@ -663,13 +680,22 @@ const SiteChrome: React.FC<{
       frame = 0;
       const headerOffset = 132;
       let currentSection = "home";
+      const scrollPosition = window.scrollY + headerOffset;
+      const maxScrollTop = Math.max(
+        document.documentElement.scrollHeight - window.innerHeight,
+        0
+      );
 
       sectionIds.forEach((sectionId) => {
         const section = document.getElementById(sectionId);
-        if (section && section.getBoundingClientRect().top <= headerOffset) {
+        if (section && getStableDocumentTop(section) <= scrollPosition) {
           currentSection = sectionId;
         }
       });
+
+      if (maxScrollTop - window.scrollY <= 2) {
+        currentSection = "contact";
+      }
 
       setActiveSection(currentSection);
     };
@@ -1401,11 +1427,9 @@ export const App: React.FC = () => {
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <div
-        className="scroll-progress"
-        style={{ transform: `scaleX(${scrollProgress})` }}
-        aria-hidden="true"
-      />
+      <div className="scroll-progress" aria-hidden="true">
+        <span style={{ transform: `scaleX(${scrollProgress})` }} />
+      </div>
       <div className="viewport-fade viewport-fade-top" aria-hidden="true" />
       <div className="viewport-fade viewport-fade-bottom" aria-hidden="true" />
       <SiteChrome route={route} />
