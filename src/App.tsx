@@ -75,6 +75,7 @@ type StaggerStyle = React.CSSProperties & {
 };
 
 const GITHUB_USERNAME = "kevinpchen";
+const FEATURED_EXTERNAL_REPOS = ["EverMind-AI/everos-plugins"];
 const RESUME_PATH = "/Kevin_Chen_Resume.pdf";
 const HOME_HASH = "#/";
 const HIDDEN_HOME_REPOS = new Set([
@@ -84,13 +85,13 @@ const HIDDEN_HOME_REPOS = new Set([
   "CS3113",
   "kevin-p-chen",
   "NYU-AI-School",
+  "Math-Learning-Website",
 ]);
 const HOME_REPO_PRIORITY = [
   "Alpha-DoMi",
-  "Math-Learning-Website",
-  "AI-Product-Radar",
-  "NYU-AI-School",
+  "everos-plugins",
   "gittuf",
+  "AI-Product-Radar",
 ];
 const REPO_OVERRIDES: Record<
   string,
@@ -102,10 +103,11 @@ const REPO_OVERRIDES: Record<
   gittuf: {
     description: "I am an active contributor to gittuf, a security layer for Git repositories.",
   },
-  "Math-Learning-Website": {
-    displayName: "Math Learning Website",
-    description:
-      "A math learning site that helps teachers track homework progress and give feedback.",
+  "everos-plugins": {
+    displayName: "EverMind's EverOS Plugins",
+  },
+  "AI-Product-Radar": {
+    displayName: "AI Radar",
   },
 };
 
@@ -515,8 +517,7 @@ const ScrollFadeSection: React.FC<{
   const ref = useRef<HTMLElement | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [style, setStyle] = useState<React.CSSProperties>({
-    opacity: 0.14,
-    transform: "translate3d(0, 24px, 0)",
+    transform: "translate3d(0, 16px, 0)",
   });
 
   useEffect(() => {
@@ -537,21 +538,17 @@ const ScrollFadeSection: React.FC<{
         0,
         1
       );
-
-      let opacity = 0.14 + enterProgress * 0.86;
-      let y = (1 - enterProgress) * 24;
+      let opacity = 1;
+      let y = prefersReducedMotion ? 0 : (1 - enterProgress) * 16;
 
       if (!prefersReducedMotion) {
         const exitProgress = clamp(
-          (viewportHeight * 0.18 - rect.top) / Math.max(rect.height, viewportHeight * 0.58),
+          (viewportHeight * 0.12 - rect.top) / Math.max(rect.height, viewportHeight * 0.9),
           0,
           1
         );
-        opacity = clamp(opacity * (1 - exitProgress * 0.78), 0.12, 1);
-        y -= exitProgress * 24;
-      } else {
-        y = 0;
-        opacity = clamp(opacity, 0.24, 1);
+        opacity = 1 - exitProgress * 0.18;
+        y -= exitProgress * 8;
       }
 
       setStyle({
@@ -568,7 +565,9 @@ const ScrollFadeSection: React.FC<{
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        setIsVisible(entry.isIntersecting || entry.intersectionRatio > 0.08);
+        if (entry.isIntersecting || entry.intersectionRatio > 0.08) {
+          setIsVisible(true);
+        }
         requestUpdate();
       },
       { threshold: [0, 0.08, 0.2, 0.45, 0.75, 1] }
@@ -1338,14 +1337,19 @@ export const App: React.FC = () => {
   useEffect(() => {
     const fetchRepos = async () => {
       try {
-        const res = await fetch(
-          `https://api.github.com/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=100`
-        );
-        if (!res.ok) {
+        const responses = await Promise.all([
+          fetch(`https://api.github.com/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=100`),
+          ...FEATURED_EXTERNAL_REPOS.map((repo) =>
+            fetch(`https://api.github.com/repos/${repo}`)
+          ),
+        ]);
+        if (responses.some((response) => !response.ok)) {
           throw new Error("Failed to load GitHub repositories.");
         }
-        const data: Repo[] = await res.json();
-        setRepos(data);
+        const [userRepos, ...externalRepos] = await Promise.all(
+          responses.map((response) => response.json())
+        ) as [Repo[], ...Repo[]];
+        setRepos([...userRepos, ...externalRepos]);
       } catch (entry) {
         setError((entry as Error).message);
       } finally {
