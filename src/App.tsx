@@ -846,6 +846,9 @@ const HomePage: React.FC<{
               className="hero-portrait-image"
               src="/media/hero-portrait.webp"
               alt="Portrait of Kevin Chen."
+              width="724"
+              height="1042"
+              decoding="async"
             />
             <figcaption className="hero-portrait-caption">
               <span>NYU Tandon CS</span>

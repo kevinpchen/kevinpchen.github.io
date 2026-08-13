@@ -35,7 +35,7 @@ html {
 
 body {
   margin: 0;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
@@ -212,6 +212,12 @@ img {
   border-color: var(--line-strong);
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+.nav-button:active,
+.nav-link:active,
+.button-link:active {
+  transform: translateY(1px) scale(0.985);
 }
 
 .nav-link {
@@ -513,6 +519,10 @@ img {
 .button-link:hover {
   border-color: var(--line-strong);
   transform: translateY(-1px);
+}
+
+.button-link:active {
+  transform: translateY(1px) scale(0.985);
 }
 
 .button-link:not(.button-link-muted):hover {
@@ -1891,7 +1901,7 @@ body::after {
   border-color: rgba(234, 238, 228, 0.17);
 }
 
-.button-link::after {
+.button-link:not(.awards-toggle)::after {
   content: " ->";
   max-width: 0;
   overflow: hidden;
@@ -1903,8 +1913,8 @@ body::after {
     margin-left 180ms ease;
 }
 
-.button-link:hover::after,
-.button-link:focus-visible::after {
+.button-link:not(.awards-toggle):hover::after,
+.button-link:not(.awards-toggle):focus-visible::after {
   max-width: 2rem;
   margin-left: 6px;
   opacity: 1;
@@ -2132,10 +2142,12 @@ body::after {
   position: absolute;
   right: 0;
   bottom: -1px;
-  width: 0;
+  width: 28%;
   height: 1px;
   background: var(--accent);
-  transition: width 320ms ease;
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform 320ms ease;
 }
 
 .project-row:hover {
@@ -2144,8 +2156,15 @@ body::after {
   transform: translateX(4px);
 }
 
-.project-row:hover::after {
-  width: 28%;
+.project-row:focus-within {
+  border-left-color: var(--accent);
+  background: rgba(160, 211, 123, 0.025);
+  transform: translateX(4px);
+}
+
+.project-row:hover::after,
+.project-row:focus-within::after {
+  transform: scaleX(1);
 }
 
 .project-number {
@@ -2155,9 +2174,22 @@ body::after {
 }
 
 .project-thumb {
+  overflow: hidden;
   border-color: rgba(234, 238, 228, 0.18);
   border-radius: 2px;
   background: var(--bg-elevated);
+}
+
+.project-thumb img {
+  transition:
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 420ms ease;
+}
+
+.project-row:hover .project-thumb img,
+.project-row:focus-within .project-thumb img {
+  filter: saturate(1.04) contrast(1.02);
+  transform: scale(1.018);
 }
 
 .project-copy h3,
@@ -2224,6 +2256,16 @@ body::after {
 }
 
 .repo-row:hover::after {
+  color: var(--accent);
+  transform: translateX(4px);
+}
+
+.repo-row:focus-visible {
+  color: var(--text);
+  background: rgba(160, 211, 123, 0.025);
+}
+
+.repo-row:focus-visible::after {
   color: var(--accent);
   transform: translateX(4px);
 }
@@ -2516,16 +2558,22 @@ body::after {
   }
 
   .site-nav {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     width: 100%;
-    gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 3px;
+    gap: 5px;
+    overflow: visible;
+    padding-bottom: 2px;
   }
 
   .site-nav .nav-button,
-  .site-nav .nav-link {
-    width: auto;
+  .site-nav .nav-link,
+  .site-nav .project-chip {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 7px;
+    font-size: 0.63rem;
+    letter-spacing: 0.075em;
   }
 
   .nav-button,
@@ -2712,7 +2760,15 @@ body::after {
   }
 
   .hero .hero-copy h1 {
-    font-size: 2.35rem;
+    font-size: clamp(2.08rem, 10.8vw, 2.35rem);
+  }
+
+  .site-nav .nav-button,
+  .site-nav .nav-link,
+  .site-nav .project-chip {
+    padding-inline: 5px;
+    font-size: 0.625rem;
+    letter-spacing: 0.03em;
   }
 
   .hero-portrait-frame {
@@ -2732,6 +2788,19 @@ body::after {
   }
 }
 
+@media (max-width: 360px) {
+  .site-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .site-nav .nav-button,
+  .site-nav .nav-link,
+  .site-nav .project-chip {
+    font-size: 0.66rem;
+    letter-spacing: 0.055em;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .scroll-progress span,
   .header-status::before {
@@ -2740,7 +2809,32 @@ body::after {
   }
 
   .project-row:hover,
+  .project-row:focus-within,
+  .project-row:hover .project-thumb img,
+  .project-row:focus-within .project-thumb img,
+  .repo-row:hover::after,
+  .repo-row:focus-visible::after,
+  .nav-button:active,
+  .nav-link:active,
+  .button-link:active {
+    transform: none;
+  }
+}
+
+@media (hover: none) {
+  .project-row:hover {
+    border-left-color: transparent;
+    background: transparent;
+    transform: none;
+  }
+
+  .project-row:hover::after {
+    transform: scaleX(0);
+  }
+
+  .project-row:hover .project-thumb img,
   .repo-row:hover::after {
+    filter: none;
     transform: none;
   }
 }
