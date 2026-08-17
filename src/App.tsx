@@ -780,7 +780,7 @@ const HomePage: React.FC<{
               <span className="cursor">_</span>
             </p>
             <h1>
-              <span>#</span> Kevin P. Chen
+              <span>#</span> Kevin P Chen
             </h1>
             <p className="hero-subtitle">Backend / ML Systems Builder</p>
             <p className="hero-body">
@@ -1450,7 +1450,7 @@ export const App: React.FC = () => {
       </main>
 
       <footer className="site-footer">
-        <span>Kevin P. Chen</span>
+        <span>Kevin P Chen</span>
         <span>New York / Shanghai</span>
         <a
           href={`https://github.com/${GITHUB_USERNAME}`}
